@@ -1,0 +1,38 @@
+ORACLE EBS R12/CLOUD SUPPORT NOTE - ID: 789012.1
+Subject: Troubleshooting 'Generic Data Fix' on AP Invoices
+---------------------------------------------------------
+ISSUE DESCRIPTION:
+Users are unable to validate AP Invoices. The status remains 'NEEDS REVALIDATION' even after running the validation program. 
+Error observed in FND Debug Log: "ORA-01403: no data found in package AP_APPROVAL_PKG".
+
+ROOT CAUSE:
+This is often caused by orphan records in the AP_INVOICE_LINES_ALL table where the LINE_GROUP_NUMBER is null but the invoice type requires grouping. This happens frequently after a bulk import via FBDI (Cloud) or Interface tables (EBS).
+
+TECHNICAL RESOLUTION (SQL FIX):
+1. Identify the corrupt lines:
+   SELECT invoice_id, line_number 
+   FROM ap_invoice_lines_all 
+   WHERE line_group_number IS NULL 
+   AND org_id = :p_org_id;
+
+2. Backup the table before update.
+3. Update the lines to default group:
+   UPDATE ap_invoice_lines_all
+   SET line_group_number = 1
+   WHERE line_group_number IS NULL
+   AND invoice_id = :p_invoice_id;
+   COMMIT;
+
+FUNCTIONAL WORKAROUND:
+If you cannot run SQL, go to the Invoice Workbench.
+1. Cancel the lines.
+2. Re-enter the lines manually.
+3. Actions -> Validate.
+
+---------------------------------------------------------
+TOPIC: Concurrent Manager 'Target Node' Issue
+ERROR CODE: FND-0021
+SYMPTOM: Concurrent requests stay in 'Pending' phase forever.
+FIX: The FND_NODES table is out of sync.
+Run the script: $FND_TOP/patch/115/sql/afcpnode.sql
+Clean the FND_NODES table and restart the managers.
